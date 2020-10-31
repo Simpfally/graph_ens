@@ -1,0 +1,4 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k}{MATCH} \PYG{p}{(}\PYG{n}{n}\PYG{p}{:}\PYG{n}{ShowbizPerson}\PYG{p}{)}\PYG{o}{\PYGZhy{}}\PYG{p}{[:}\PYG{n}{ACTED\PYGZus{}IN}\PYG{p}{]}\PYG{o}{\PYGZhy{}\PYGZgt{}}\PYG{p}{(}\PYG{n}{m}\PYG{p}{:}\PYG{n}{Movie}\PYG{p}{)}\PYG{o}{\PYGZlt{}\PYGZhy{}}\PYG{p}{[:}\PYG{n}{DIRECTED}\PYG{p}{]}\PYG{o}{\PYGZhy{}}\PYG{p}{(}\PYG{n}{n}\PYG{p}{)}
+\PYG{k}{RETURN} \PYG{n}{n}\PYG{p}{,}\PYG{n}{m}\PYG{p}{;}
+\end{Verbatim}

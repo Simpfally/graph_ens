@@ -1,0 +1,6 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k}{MATCH} \PYG{p}{(}\PYG{n}{k}\PYG{p}{)}
+\PYG{k}{WITH} \PYG{n}{k}\PYG{p}{,} \PYG{k}{size}\PYG{p}{((}\PYG{n}{k}\PYG{p}{)}\PYG{c+c1}{\PYGZhy{}\PYGZhy{}()) as degree}
+\PYG{k}{order} \PYG{k}{by} \PYG{n}{degree} \PYG{k}{ASC}
+\PYG{k}{return} \PYG{n}{degree}\PYG{p}{;}
+\end{Verbatim}

@@ -1,0 +1,4 @@
+#!/bin/bash
+cat $1
+echo "-----------------------------"
+cypher-shell -u neo4j -p neo4j -f $1 "${@:2}"

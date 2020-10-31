@@ -1,0 +1,3 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k}{MATCH} \PYG{p}{(}\PYG{n}{n}\PYG{p}{)} \PYG{k}{RETURN} \PYG{k}{DISTINCT} \PYG{n}{labels}\PYG{p}{(}\PYG{n}{n}\PYG{p}{);}
+\end{Verbatim}

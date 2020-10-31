@@ -1,0 +1,1024 @@
+// Get the set of all distinct node labels.
+
+MATCH (n) RETURN DISTINCT labels(n);
+
+// The command labels return the labels of n. 
+// The command DISTINCT is used so that we returned each label only once.
+// Notice that if another label for node is allowed but do not appereared in the graph, it won't be returned by this querie.
+// Get the set of all distinct relationship types in the dataset.
+
+MATCH (n)-[r]-(m) RETURN DISTINCT type(r);
+
+// The command type return the labels of r. 
+// The command DISTINCT is used so that we returned each type only once.
+// Get the set of all properties for different node labels and relationship types.
+
+MATCH (n)
+WITH (labels(n))[0] as name,  keys(n) as kn
+UNWIND kn as keyn
+RETURN DISTINCT name,COLLECT(DISTINCT keyn) as properties 
+
+UNION
+
+MATCH (n)-[r]-(m) 
+WITH type(r) as name, keys(r) as kr
+UNWIND kr as keyr
+RETURN DISTINCT name ,COLLECT(DISTINCT keyr) as properties;
+
+// We make two queries to get the labels/typs and properties of nodes as well as arrows. We then concatenate them with UNION.
+// For the first query we do : for each node in the graph, we get its label and list of properties. Then we break the list into rows (with the command unwind).
+// This allows us to then regroup for all label, all the properties that have been encountered with it in a single list. This is done with the command "COLLECT", to regroup all properties.
+// The command DISTINCT is used so that properties do not appears more than once in the same list.
+// The second query is similar to the first one.
+// Find all actors that directed a movie they also acted in. 
+// Return actor and movie nodes.
+
+MATCH (n:ShowbizPerson)-[:ACTED_IN]->(m:Movie)<-[:DIRECTED]-(n)
+RETURN n,m;
+
+// We simply match the pattern to get the results.
+// Find all reviewer pairs, one following the other and both reviewing the same movie.
+//Return the entire subgraphs.
+
+MATCH p=(m:Movie)<-[:REVIEWED]-(n1:MoviegoerPerson)-[:FOLLOWS]->(n2)-[:REVIEWED]->(m)
+RETURN p;
+
+// Similarly, we can match the exact pattern.
+// Find all reviewer pairs, such that one follows the other.
+// Return the two reviewers and a movie they may have reviewed both
+
+MATCH (n1:MoviegoerPerson)-[:FOLLOWS]->(n2)
+OPTIONAL MATCH (n1)-[:REVIEWED]->(m:Movie)<-[:REVIEWED]-(n2)
+RETURN n1, n2, m;
+
+// OPTIONAL MATCH will replace missing instances (for example m) with NULL in case no instances exists that fits the pattern.
+// Here, some reviewers follow another one but haven't ever reviewed the same movie, thus the movie column is NULL.
+// Restrict the previous query so that the name of the followed reviewer is 12 characters long.
+// Try a different position for the where clause. Explain why this gives a different result.
+
+MATCH (n1:MoviegoerPerson)-[:FOLLOWS]->(n2)
+OPTIONAL MATCH (n1)-[:REVIEWED]->(m:Movie)<-[:REVIEWED]-(n2)
+WHERE size(n2.name) = 12
+RETURN n1, n2, size(n2.name), m;
+
+// We use a optional match to replace missing part of the match by NULL
+// If WHERE is before the optional match, we only get one result because Angela Scope is the only followed reviewer with length 12
+// If WHERE is after the optional match, we get three rows with "NULL" in the movie column and two rows do not respect the size constraint. Indeed if a optional match cannot be found with the additional WHERE constraint, it will simply replace m by NULL and still add this row to the result.
+// Find all pairs of actors where both acted in a movie together after 2005.
+// Return the actor names and movie node with every pair of actors occurring just once 
+
+
+MATCH (n1:ShowbizPerson)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(n2:ShowbizPerson)
+WHERE m.released >= 2005
+AND n1.name < n2.name
+RETURN DISTINCT [n1.name,n2.name],collect(m)[0];
+
+// We return unique pairs of actors that have acted in the same movie released after 2005.
+// We match two actors nodes that have both an arrow [ACTED\_IN] toward the same movie node.
+// The test "n2.name<n1.name" assures that for all pairs of actors (a,b) one will only get the pair (min(a,b),max(a,b)) where the order used is the one used by cypher on strings.
+// Then, we only show the distinct pairs by aggregating the movies names, thus removing the duplicates pairs. Then we only show the first movie node with [0]
+// Extend Q5 to find all other movies in which the actors computed by Q5 also acted in.
+
+
+MATCH (n1:ShowbizPerson)-[:ACTED_IN]->
+(m:Movie) <-[:ACTED_IN]-(n2:ShowbizPerson)
+WHERE m.released >= 2005
+AND n1.name < n2.name
+RETURN DISTINCT [n1.name,n2.name],collect(m);
+
+// Interpretation : we return the unique pairs of actors (that acted in the same movie), and the list of every movie they acted in together.
+// Continuing from Q5 explanation : here we give the complete list of movies that each unique pair of actors have done together.
+//U1. Add Meryl Streep as a node.
+//U2. Add the movie The River Wild as a node .
+//U3. Add an ACTED\_IN relationship including Meryl’s role between the two.
+//U4. Add an ACTED\_IN relationship including the role between Kevin Bacon and The River Wild.
+//U5. For The Bridges of Madison County, add nodes corresponding to the movie, to its three main actors, and to its director, as well as ACTED\_IN/DIRECTED edges.
+
+MATCH (Kevin:ShowbizPerson),(Clint:ShowbizPerson)
+WHERE Kevin.name="Kevin Bacon"
+AND Clint.name="Clint Eastwood"
+CREATE (Streep:ShowbizPerson {name:'Meryl Streep', born:1949})
+CREATE (Annie:ShowbizPerson {name:'Annie Corley', born:1952})
+CREATE (River:Movie {title:'The River Wild', released:1995, tagline:'Rafting expert Gail takes on a pair of armed killers while navigating a spectacularly violent river.'})
+CREATE (Madison:Movie {title:'The Bridges of Madison County', released:1995, tagline:'Photographer Robert Kincaid (Clint Eastwood) wanders into the life of housewife Francesca Johnson (Meryl Streep) for four days in the 1960s.'})
+CREATE (Streep)-[:ACTED_IN {roles:['Gail Hartman']}]->(River)
+CREATE (Kevin)-[:ACTED_IN {roles:['Wade']}]->(River)
+CREATE (Clint)-[:ACTED_IN {roles:['Robert Kincaid']}]->(Madison)
+CREATE (Annie)-[:ACTED_IN {roles:['Carolyn Johnson']}]->(Madison)
+CREATE (Streep)-[:ACTED_IN {roles:['Francesca Johnson']}]->(Madison)
+CREATE (Clint)-[:DIRECTED]->(Madison);
+
+// Applying the same thing that what is done in the given sql files.
+// Notice just that we collected already exisiting node through matching.
+// Note : this needs to be encapsulated with :begin and :commit methods to actually write to the database
+// Match all reviewers and the one they are following directly or via another, third reviewer.
+
+MATCH (r:MoviegoerPerson)-[:FOLLOWS]->(r2)
+RETURN r as reviewer, r2 as followed
+UNION
+MATCH (r:MoviegoerPerson)-[:FOLLOWS]->(r1:MoviegoerPerson)-[:FOLLOWS]->(r2)
+RETURN r as reviewer, r2 as followed;
+
+// We join the two querie that return couple of people where
+// for the first query : the first person in the couple follow the other
+// for the second query : the first person in the couple follow the other via a third one.
+// Count the number of paths of at most length 4
+// starting from Clint Eastwood ignoring edge direction.
+
+MATCH path = (n:ShowbizPerson)-[*1..4]-(m)
+WHERE n.name="Clint Eastwood"
+RETURN count(distinct path);
+
+// The command "[*1..4]" will match paths of length 1 to 4 that start with n and ends with  m.
+// The command count counts the numbers of path.
+// The command distinct make sure we won't count same path twice.
+// Result : 182
+// Count the number of paths of at most length 10
+// starting from Clint Eastwood ignoring edge direction.
+
+MATCH path = (n:ShowbizPerson)-[*1..10]-(m)
+WHERE n.name="Clint Eastwood"
+RETURN count(distinct path);
+
+// Result : 570642
+// Count the number of paths of at most length 11
+// starting from Clint Eastwood ignoring edge direction.
+
+MATCH path = (n:ShowbizPerson)-[*1..11]-(m)
+WHERE n.name="Clint Eastwood"
+RETURN count(distinct path);
+
+// result : 
+// Count the number of nodes reachable
+// in at most 4 hops starting from Clint Eastwood ignoring edge direction.
+
+MATCH (n:ShowbizPerson)-[*1..4]-(m)
+WHERE n.name="Clint Eastwood"
+RETURN count(distinct m);
+
+// The command "[*1..4]" will match paths of length 1 to 4 that start with n and ends with  m.
+// The command count counts the numbers of path.
+// The command distinct make sure we won't count same path twice.
+// Count the number of nodes reachable
+// in at most 10 hops starting from Clint Eastwood ignoring edge direction.
+
+MATCH (n)-[*1..10]-(m)
+WHERE n.name="Clint Eastwood"
+RETURN count(distinct m);
+// Count the number of nodes reachable
+// in at most 11 hops starting from Clint Eastwood ignoring edge direction.
+
+MATCH (n)-[*1..11]-(m)
+WHERE n.name="Clint Eastwood"
+RETURN count(distinct m);
+
+// Determine the average age of the Apollo 13 cast at the time of the movie’s release
+
+MATCH (n:ShowbizPerson)-[:ACTED_IN]-> (m:Movie)
+WHERE m.title = "Apollo 13"
+RETURN avg(m.released-n.born);
+
+// The age for each actors when the movie was released is computed by m.released-n.born where n.born is the actor's birth year and m.released the date the movie was released
+// The command avg compute the average of all rows.
+//  Find the movies with the top-10 oldest cast at the time of the movie’s release
+//  Return movie and average age rounded to two decimal ordered by descending age
+
+
+
+MATCH (n:ShowbizPerson)-[:ACTED_IN]-> (m:Movie)
+RETURN m,round(100*avg(m.released-n.born))/100 as mean
+ORDER BY mean DESC
+LIMIT 10;
+
+// The command "order by ... desc" returned the result sorted in descreasing order.
+// The command LIMIT 10 return the fisrt 10 results.
+// Find average age of youngest actors in movie casts at time of release
+
+MATCH (n:ShowbizPerson)-[:ACTED_IN]-> (m:Movie)
+WITH m,min(m.released-n.born) as obj
+RETURN avg(obj);
+
+// Interpreation : return the average of all movies' youngest actor's age.
+// Using the command "WITH", for each movie we only keep the minimum age of the cast
+// Hence the average of obj is the average age of the youngest actor of all movies.
+// Return for each movie the name of the youngest actor, order by movie title and actor name.
+
+MATCH (n:ShowbizPerson)-[:ACTED_IN]-> (m:Movie)
+WITH m.title as title, max(n.born) as maxx
+MATCH (n:ShowbizPerson)-[:ACTED_IN]-> (m:Movie)
+WHERE m.title = title AND n.born = maxx
+return m.title, n.name;
+
+// First we get the youngest actor (highest born year) for each movie 
+// Then we get the movie title and youngest actor name associated with the birthdate computed in the first MATCH
+// Find ACTED\_IN subgraph of the movie with the youngest cast at the time of the movie’s release
+
+MATCH (n:ShowbizPerson)-[:ACTED_IN]-> (m:Movie)
+WITH m.title as title, avg(m.released - n.born) as age 
+WITH min(age) as avgage 
+MATCH (n:ShowbizPerson)-[:ACTED_IN]-> (m:Movie)
+WITH m, avgage, avg(m.released - n.born) as age 
+WHERE age = avgage
+MATCH (a)-[:ACTED_IN]-> (m1:Movie)
+WHERE m1.title = m.title
+return a, m1;
+
+// TODO
+// Determine the movie with youngest and movie with oldest cast and their age difference rounded to two decimals.
+
+MATCH (n:ShowbizPerson)-[:ACTED_IN]-> (m:Movie)
+WITH m.title as oldest, avg(m.released - n.born) as age 
+WITH oldest, max(age) as maxage
+MATCH (n:ShowbizPerson)-[:ACTED_IN]-> (m:Movie)
+WITH oldest, m as youngest, 
+round((maxage - avg(m.released - n.born))*100)/100 as age
+ORDER BY age DESC LIMIT 1
+return oldest, youngest.title as youngest, age as age_difference;
+
+// We first retrieve the maximum average age of a movie's cast then we again list movies with their average cast age substracted by the maximum.
+// the youngest movie is the one with the biggest difference so we simply sort the results and take the first result.
+// This gives us the age difference between the youngest and oldest cast.
+// Return the whole graph as a simple adjacency list of vertex ids ordered in descending order.
+
+MATCH (a)-[e]->(b)
+with id(a) as ida, id(b) as idb
+order by ida DESC, idb DESC
+return ida, collect(idb);
+
+// We simply collect all the IDs.
+// Return the out degree distribution ordered by ascending degree.
+MATCH (k)
+WITH k, size((k)-->()) as degree
+order by degree ASC
+return degree;
+
+// Here we have to use size in the WITH catch vertices with 0 out degree.
+// Return degree distribution ordered by ascending degree.
+
+MATCH (k)
+WITH k, size((k)--()) as degree
+order by degree ASC
+return degree;
+
+// Simple modification from Q2 to not take into account directionnality of arrows.
+// Return edge types with corresponding number of instances ordered by descending order.
+
+MATCH p = (a)-[e]->(b)
+with type(e) as edge_type, count(p) as number_instances
+order by number_instances DESC
+return edge_type, number_instances;
+
+// We simply count how many instances we have of each edge type.
+-----------------------------
+labels(n)
+["Movie"]
+["ShowbizPerson"]
+["MoviegoerPerson"]
+type(r)
+"ACTED_IN"
+"DIRECTED"
+"PRODUCED"
+"WROTE"
+"REVIEWED"
+"FOLLOWS"
+name, properties
+"Movie", ["tagline", "title", "released"]
+"ShowbizPerson", ["born", "name"]
+"MoviegoerPerson", ["name"]
+"ACTED_IN", ["roles"]
+"REVIEWED", ["summary", "rating"]
+n, m
+(:ShowbizPerson {name: "Tom Hanks", born: 1956}), (:Movie {tagline: "In every life there comes a time when that thing you dream becomes that thing you do", title: "That Thing You Do", released: 1996})
+(:ShowbizPerson {name: "Clint Eastwood", born: 1930}), (:Movie {tagline: "It's a hell of a thing, killing a man", title: "Unforgiven", released: 1992})
+(:ShowbizPerson {name: "Danny DeVito", born: 1944}), (:Movie {tagline: "He didn't want law. He wanted justice.", title: "Hoffa", released: 1992})
+p
+(:Movie {tagline: "Pain heals, Chicks dig scars... Glory lasts forever", title: "The Replacements", released: 2000})<-[:REVIEWED {summary: "Pretty funny at times", rating: 62}]-(:MoviegoerPerson {name: "Angela Scope"})-[:FOLLOWS]->(:MoviegoerPerson {name: "Jessica Thompson"})-[:REVIEWED {summary: "Silly, but fun", rating: 65}]->(:Movie {tagline: "Pain heals, Chicks dig scars... Glory lasts forever", title: "The Replacements", released: 2000})
+(:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})<-[:REVIEWED {summary: "Fun, but a little far fetched", rating: 65}]-(:MoviegoerPerson {name: "James Thompson"})-[:FOLLOWS]->(:MoviegoerPerson {name: "Jessica Thompson"})-[:REVIEWED {summary: "A solid romp", rating: 68}]->(:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})
+(:Movie {tagline: "Pain heals, Chicks dig scars... Glory lasts forever", title: "The Replacements", released: 2000})<-[:REVIEWED {summary: "The coolest football movie ever", rating: 100}]-(:MoviegoerPerson {name: "James Thompson"})-[:FOLLOWS]->(:MoviegoerPerson {name: "Jessica Thompson"})-[:REVIEWED {summary: "Silly, but fun", rating: 65}]->(:Movie {tagline: "Pain heals, Chicks dig scars... Glory lasts forever", title: "The Replacements", released: 2000})
+n1, n2, m
+(:MoviegoerPerson {name: "Paul Blythe"}), (:MoviegoerPerson {name: "Angela Scope"}), NULL
+(:MoviegoerPerson {name: "Angela Scope"}), (:MoviegoerPerson {name: "Jessica Thompson"}), (:Movie {tagline: "Pain heals, Chicks dig scars... Glory lasts forever", title: "The Replacements", released: 2000})
+(:MoviegoerPerson {name: "James Thompson"}), (:MoviegoerPerson {name: "Jessica Thompson"}), (:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})
+(:MoviegoerPerson {name: "James Thompson"}), (:MoviegoerPerson {name: "Jessica Thompson"}), (:Movie {tagline: "Pain heals, Chicks dig scars... Glory lasts forever", title: "The Replacements", released: 2000})
+n1, n2, size(n2.name), m
+(:MoviegoerPerson {name: "Paul Blythe"}), (:MoviegoerPerson {name: "Angela Scope"}), 12, NULL
+(:MoviegoerPerson {name: "Angela Scope"}), (:MoviegoerPerson {name: "Jessica Thompson"}), 16, NULL
+(:MoviegoerPerson {name: "James Thompson"}), (:MoviegoerPerson {name: "Jessica Thompson"}), 16, NULL
+[n1.name,n2.name], collect(m)[0]
+["Steve Zahn", "Zach Grenier"], (:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})
+["Marshall Bell", "Zach Grenier"], (:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})
+["Christian Bale", "Zach Grenier"], (:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})
+["Marshall Bell", "Steve Zahn"], (:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})
+["Christian Bale", "Steve Zahn"], (:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})
+["Christian Bale", "Marshall Bell"], (:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})
+["Halle Berry", "Hugo Weaving"], (:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})
+["Halle Berry", "Jim Broadbent"], (:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})
+["Hugo Weaving", "Jim Broadbent"], (:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})
+["Halle Berry", "Tom Hanks"], (:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})
+["Hugo Weaving", "Tom Hanks"], (:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})
+["Jim Broadbent", "Tom Hanks"], (:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})
+["Audrey Tautou", "Ian McKellen"], (:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})
+["Ian McKellen", "Tom Hanks"], (:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})
+["Paul Bettany", "Tom Hanks"], (:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})
+["Audrey Tautou", "Tom Hanks"], (:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})
+["Ian McKellen", "Paul Bettany"], (:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})
+["Audrey Tautou", "Paul Bettany"], (:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})
+["Ben Miles", "John Hurt"], (:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})
+["Hugo Weaving", "John Hurt"], (:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})
+["John Hurt", "Natalie Portman"], (:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})
+["Ben Miles", "Natalie Portman"], (:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})
+["Hugo Weaving", "Natalie Portman"], (:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})
+["John Hurt", "Stephen Rea"], (:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})
+["Natalie Portman", "Stephen Rea"], (:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})
+["Ben Miles", "Stephen Rea"], (:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})
+["Hugo Weaving", "Stephen Rea"], (:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})
+["Ben Miles", "Hugo Weaving"], (:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})
+["Ben Miles", "Rain"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Emile Hirsch", "Rain"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["John Goodman", "Rain"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Christina Ricci", "Rain"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Matthew Fox", "Rain"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Ben Miles", "Emile Hirsch"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Christina Ricci", "Emile Hirsch"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Ben Miles", "John Goodman"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Emile Hirsch", "John Goodman"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Christina Ricci", "John Goodman"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Ben Miles", "Christina Ricci"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Ben Miles", "Matthew Fox"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Emile Hirsch", "Matthew Fox"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["John Goodman", "Matthew Fox"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Christina Ricci", "Matthew Fox"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Ben Miles", "Susan Sarandon"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Rain", "Susan Sarandon"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Emile Hirsch", "Susan Sarandon"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["John Goodman", "Susan Sarandon"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Christina Ricci", "Susan Sarandon"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Matthew Fox", "Susan Sarandon"], (:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})
+["Naomie Harris", "Rain"], (:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})
+["Rain", "Rick Yune"], (:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})
+["Naomie Harris", "Rick Yune"], (:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})
+["Ben Miles", "Rick Yune"], (:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})
+["Ben Miles", "Naomie Harris"], (:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})
+["Frank Langella", "Michael Sheen"], (:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})
+["Kevin Bacon", "Michael Sheen"], (:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})
+["Frank Langella", "Kevin Bacon"], (:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})
+["Michael Sheen", "Oliver Platt"], (:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})
+["Frank Langella", "Oliver Platt"], (:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})
+["Kevin Bacon", "Oliver Platt"], (:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})
+["Michael Sheen", "Sam Rockwell"], (:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})
+["Frank Langella", "Sam Rockwell"], (:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})
+["Kevin Bacon", "Sam Rockwell"], (:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})
+["Oliver Platt", "Sam Rockwell"], (:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})
+["Julia Roberts", "Philip Seymour Hoffman"], (:Movie {tagline: "A stiff drink. A little mascara. A lot of nerve. Who said they couldn't bring down the Soviet empire.", title: "Charlie Wilson's War", released: 2007})
+["Philip Seymour Hoffman", "Tom Hanks"], (:Movie {tagline: "A stiff drink. A little mascara. A lot of nerve. Who said they couldn't bring down the Soviet empire.", title: "Charlie Wilson's War", released: 2007})
+["Julia Roberts", "Tom Hanks"], (:Movie {tagline: "A stiff drink. A little mascara. A lot of nerve. Who said they couldn't bring down the Soviet empire.", title: "Charlie Wilson's War", released: 2007})
+[n1.name,n2.name], collect(m)
+["Steve Zahn", "Zach Grenier"], [(:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})]
+["Marshall Bell", "Zach Grenier"], [(:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})]
+["Christian Bale", "Zach Grenier"], [(:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})]
+["Marshall Bell", "Steve Zahn"], [(:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})]
+["Christian Bale", "Steve Zahn"], [(:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})]
+["Christian Bale", "Marshall Bell"], [(:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006})]
+["Halle Berry", "Hugo Weaving"], [(:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})]
+["Halle Berry", "Jim Broadbent"], [(:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})]
+["Hugo Weaving", "Jim Broadbent"], [(:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})]
+["Halle Berry", "Tom Hanks"], [(:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})]
+["Hugo Weaving", "Tom Hanks"], [(:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})]
+["Jim Broadbent", "Tom Hanks"], [(:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012})]
+["Audrey Tautou", "Ian McKellen"], [(:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})]
+["Ian McKellen", "Tom Hanks"], [(:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})]
+["Paul Bettany", "Tom Hanks"], [(:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})]
+["Audrey Tautou", "Tom Hanks"], [(:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})]
+["Ian McKellen", "Paul Bettany"], [(:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})]
+["Audrey Tautou", "Paul Bettany"], [(:Movie {tagline: "Break The Codes", title: "The Da Vinci Code", released: 2006})]
+["Ben Miles", "John Hurt"], [(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})]
+["Hugo Weaving", "John Hurt"], [(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})]
+["John Hurt", "Natalie Portman"], [(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})]
+["Ben Miles", "Natalie Portman"], [(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})]
+["Hugo Weaving", "Natalie Portman"], [(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})]
+["John Hurt", "Stephen Rea"], [(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})]
+["Natalie Portman", "Stephen Rea"], [(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})]
+["Ben Miles", "Stephen Rea"], [(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})]
+["Hugo Weaving", "Stephen Rea"], [(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})]
+["Ben Miles", "Hugo Weaving"], [(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006})]
+["Ben Miles", "Rain"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008}), (:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})]
+["Emile Hirsch", "Rain"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["John Goodman", "Rain"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Christina Ricci", "Rain"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Matthew Fox", "Rain"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Ben Miles", "Emile Hirsch"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Christina Ricci", "Emile Hirsch"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Ben Miles", "John Goodman"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Emile Hirsch", "John Goodman"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Christina Ricci", "John Goodman"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Ben Miles", "Christina Ricci"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Ben Miles", "Matthew Fox"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Emile Hirsch", "Matthew Fox"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["John Goodman", "Matthew Fox"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Christina Ricci", "Matthew Fox"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Ben Miles", "Susan Sarandon"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Rain", "Susan Sarandon"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Emile Hirsch", "Susan Sarandon"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["John Goodman", "Susan Sarandon"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Christina Ricci", "Susan Sarandon"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Matthew Fox", "Susan Sarandon"], [(:Movie {tagline: "Speed has no limits", title: "Speed Racer", released: 2008})]
+["Naomie Harris", "Rain"], [(:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})]
+["Rain", "Rick Yune"], [(:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})]
+["Naomie Harris", "Rick Yune"], [(:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})]
+["Ben Miles", "Rick Yune"], [(:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})]
+["Ben Miles", "Naomie Harris"], [(:Movie {tagline: "Prepare to enter a secret world of assassins", title: "Ninja Assassin", released: 2009})]
+["Frank Langella", "Michael Sheen"], [(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})]
+["Kevin Bacon", "Michael Sheen"], [(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})]
+["Frank Langella", "Kevin Bacon"], [(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})]
+["Michael Sheen", "Oliver Platt"], [(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})]
+["Frank Langella", "Oliver Platt"], [(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})]
+["Kevin Bacon", "Oliver Platt"], [(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})]
+["Michael Sheen", "Sam Rockwell"], [(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})]
+["Frank Langella", "Sam Rockwell"], [(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})]
+["Kevin Bacon", "Sam Rockwell"], [(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})]
+["Oliver Platt", "Sam Rockwell"], [(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008})]
+["Julia Roberts", "Philip Seymour Hoffman"], [(:Movie {tagline: "A stiff drink. A little mascara. A lot of nerve. Who said they couldn't bring down the Soviet empire.", title: "Charlie Wilson's War", released: 2007})]
+["Philip Seymour Hoffman", "Tom Hanks"], [(:Movie {tagline: "A stiff drink. A little mascara. A lot of nerve. Who said they couldn't bring down the Soviet empire.", title: "Charlie Wilson's War", released: 2007})]
+["Julia Roberts", "Tom Hanks"], [(:Movie {tagline: "A stiff drink. A little mascara. A lot of nerve. Who said they couldn't bring down the Soviet empire.", title: "Charlie Wilson's War", released: 2007})]
+reviewer, followed
+(:MoviegoerPerson {name: "Paul Blythe"}), (:MoviegoerPerson {name: "Angela Scope"})
+(:MoviegoerPerson {name: "Angela Scope"}), (:MoviegoerPerson {name: "Jessica Thompson"})
+(:MoviegoerPerson {name: "James Thompson"}), (:MoviegoerPerson {name: "Jessica Thompson"})
+(:MoviegoerPerson {name: "Paul Blythe"}), (:MoviegoerPerson {name: "Jessica Thompson"})
+count(distinct path)
+182
+count(distinct path)
+570642
+count(distinct path)
+2054494
+count(distinct m)
+48
+count(distinct m)
+175
+count(distinct m)
+175
+avg(m.released-n.born)
+40.2
+m, mean
+(:Movie {tagline: "It's a hell of a thing, killing a man", title: "Unforgiven", released: 1992}), 62.0
+(:Movie {tagline: "Everything is connected", title: "Cloud Atlas", released: 2012}), 54.25
+(:Movie {title: "Something's Gotta Give", released: 2003}), 54.0
+(:Movie {tagline: "Photographer Robert Kincaid (Clint Eastwood) wanders into the life of housewife Francesca Johnson (Meryl Streep) for four days in the 1960s.", title: "The Bridges of Madison County", released: 1995}), 51.33
+(:Movie {tagline: "Come as you are", title: "The Birdcage", released: 1996}), 50.33
+(:Movie {tagline: "400 million people were waiting for the truth.", title: "Frost/Nixon", released: 2008}), 49.4
+(:Movie {tagline: "This Holiday Season… Believe", title: "The Polar Express", released: 2004}), 48.0
+(:Movie {tagline: "After life there is more. The end is just the beginning.", title: "What Dreams May Come", released: 1998}), 48.0
+(:Movie {tagline: "Freedom! Forever!", title: "V for Vendetta", released: 2006}), 47.2
+(:Movie {tagline: "Based on the extraordinary true story of one man's fight for freedom", title: "RescueDawn", released: 2006}), 46.75
+avg(obj)
+31.3
+m.title, n.name
+"The Matrix", "Emil Eifrem"
+"The Matrix Reloaded", "Carrie-Anne Moss"
+"The Matrix Revolutions", "Carrie-Anne Moss"
+"The Devil's Advocate", "Charlize Theron"
+"A Few Good Men", "Noah Wyle"
+"Top Gun", "Tom Cruise"
+"Top Gun", "Anthony Edwards"
+"Jerry Maguire", "Jonathan Lipnicki"
+"Stand By Me", "Jerry O'Connell"
+"As Good as It Gets", "Cuba Gooding Jr."
+"What Dreams May Come", "Cuba Gooding Jr."
+"Snow Falling on Cedars", "Rick Yune"
+"You've Got Mail", "Dave Chappelle"
+"Sleepless in Seattle", "Rosie O'Donnell"
+"Joe Versus the Volcano", "Meg Ryan"
+"When Harry Met Sally", "Meg Ryan"
+"That Thing You Do", "Liv Tyler"
+"The Replacements", "Brooke Langton"
+"RescueDawn", "Christian Bale"
+"The Birdcage", "Nathan Lane"
+"Unforgiven", "Gene Hackman"
+"Unforgiven", "Clint Eastwood"
+"Unforgiven", "Richard Harris"
+"Johnny Mnemonic", "Dina Meyer"
+"Cloud Atlas", "Halle Berry"
+"The Da Vinci Code", "Audrey Tautou"
+"V for Vendetta", "Natalie Portman"
+"Speed Racer", "Emile Hirsch"
+"Ninja Assassin", "Rain"
+"The Green Mile", "Sam Rockwell"
+"Frost/Nixon", "Michael Sheen"
+"Hoffa", "John C. Reilly"
+"Apollo 13", "Kevin Bacon"
+"Twister", "Philip Seymour Hoffman"
+"Cast Away", "Helen Hunt"
+"One Flew Over the Cuckoo's Nest", "Danny DeVito"
+"Something's Gotta Give", "Keanu Reeves"
+"Bicentennial Man", "Oliver Platt"
+"Charlie Wilson's War", "Philip Seymour Hoffman"
+"Charlie Wilson's War", "Julia Roberts"
+"The Polar Express", "Tom Hanks"
+"A League of Their Own", "Lori Petty"
+"The River Wild", "Kevin Bacon"
+"The Bridges of Madison County", "Annie Corley"
+a, m1
+(:ShowbizPerson {name: "Corey Feldman", born: 1971}), (:Movie {tagline: "For some, it's the last real taste of innocence, and the first real taste of life. But for everyone, it's the time that memories are made of.", title: "Stand By Me", released: 1986})
+(:ShowbizPerson {name: "John Cusack", born: 1966}), (:Movie {tagline: "For some, it's the last real taste of innocence, and the first real taste of life. But for everyone, it's the time that memories are made of.", title: "Stand By Me", released: 1986})
+(:ShowbizPerson {name: "River Phoenix", born: 1970}), (:Movie {tagline: "For some, it's the last real taste of innocence, and the first real taste of life. But for everyone, it's the time that memories are made of.", title: "Stand By Me", released: 1986})
+(:ShowbizPerson {name: "Marshall Bell", born: 1942}), (:Movie {tagline: "For some, it's the last real taste of innocence, and the first real taste of life. But for everyone, it's the time that memories are made of.", title: "Stand By Me", released: 1986})
+(:ShowbizPerson {name: "Kiefer Sutherland", born: 1966}), (:Movie {tagline: "For some, it's the last real taste of innocence, and the first real taste of life. But for everyone, it's the time that memories are made of.", title: "Stand By Me", released: 1986})
+(:ShowbizPerson {name: "Wil Wheaton", born: 1972}), (:Movie {tagline: "For some, it's the last real taste of innocence, and the first real taste of life. But for everyone, it's the time that memories are made of.", title: "Stand By Me", released: 1986})
+(:ShowbizPerson {name: "Jerry O'Connell", born: 1974}), (:Movie {tagline: "For some, it's the last real taste of innocence, and the first real taste of life. But for everyone, it's the time that memories are made of.", title: "Stand By Me", released: 1986})
+oldest, youngest, age_difference
+"Unforgiven", "Stand By Me", 41.86
+ida, collect(idb)
+847, [849]
+846, [849, 848]
+845, [844, 786, 762]
+844, [786, 780, 772, 770, 762, 712]
+843, [844, 762]
+842, [843]
+841, [837]
+840, [837]
+839, [837]
+838, [837]
+835, [834]
+833, [832]
+831, [829, 829, 829]
+830, [829]
+828, [827]
+826, [836, 825]
+824, [822]
+823, [834, 822]
+821, [837, 822, 819]
+820, [819]
+818, [816]
+817, [827, 816, 816]
+815, [832, 812]
+814, [812]
+813, [812]
+811, [805]
+810, [805]
+809, [819, 805]
+808, [812, 805]
+807, [805]
+806, [805]
+804, [803]
+802, [803, 796]
+801, [796]
+800, [796]
+799, [796]
+798, [796]
+797, [796]
+795, [803, 796, 791]
+794, [791]
+793, [791]
+792, [791]
+790, [819, 812, 786]
+789, [786]
+788, [786]
+787, [786]
+785, [780]
+784, [780]
+783, [780]
+782, [780]
+781, [780]
+779, [775]
+778, [775]
+777, [775]
+776, [775]
+774, [849, 849, 772, 772]
+773, [772]
+771, [834, 770]
+769, [822, 767]
+768, [767]
+766, [762]
+765, [762]
+764, [772, 770, 762]
+763, [762]
+761, [760]
+759, [756]
+758, [756]
+757, [756]
+755, [770, 753]
+754, [753]
+752, [837, 748]
+751, [748]
+750, [748]
+749, [748]
+747, [756, 756, 748, 742]
+746, [837, 836, 834, 825, 819, 805, 786, 780, 760, 760, 753, 748, 742]
+745, [767, 742]
+744, [742]
+743, [742]
+741, [737]
+740, [805, 737]
+739, [803, 737]
+738, [737]
+736, [731]
+735, [832, 770, 731]
+734, [767, 731]
+733, [737, 731]
+732, [731]
+730, [727]
+729, [742, 727]
+728, [825, 822, 727]
+726, [767, 721]
+725, [721]
+724, [721]
+723, [721]
+722, [721]
+720, [712, 712, 712]
+719, [712]
+718, [712]
+717, [805, 712]
+716, [712]
+715, [721, 712]
+714, [712]
+713, [712]
+711, [704]
+710, [704]
+709, [756, 753, 748, 742, 704]
+708, [704]
+707, [704]
+706, [704]
+705, [704]
+703, [690, 690]
+702, [756, 756, 721, 690]
+701, [690]
+700, [803, 791, 690]
+699, [816, 690]
+698, [690]
+697, [731, 727, 712, 690]
+696, [690]
+695, [721, 690]
+694, [848, 819, 812, 690]
+693, [690]
+692, [829, 827, 816, 727, 690]
+691, [712, 704, 690]
+689, [686]
+688, [686]
+687, [760, 686]
+683, [675]
+682, [803, 796, 791, 685, 684, 675]
+681, [803, 796, 796, 791, 791, 780, 685, 684, 675]
+680, [803, 796, 796, 791, 791, 780, 685, 684, 675]
+679, [791, 780, 685, 684, 675]
+678, [685, 684, 675]
+677, [685, 684, 675]
+676, [829, 775, 762, 686, 685, 684, 675]
+degree
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+4
+4
+4
+4
+4
+5
+5
+5
+6
+6
+7
+9
+9
+13
+degree
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+1
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+2
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+3
+4
+4
+4
+4
+4
+4
+4
+4
+4
+4
+5
+5
+5
+5
+5
+5
+5
+5
+5
+5
+5
+6
+6
+6
+6
+6
+7
+7
+7
+7
+7
+7
+7
+8
+8
+8
+8
+8
+8
+8
+9
+9
+9
+10
+11
+12
+13
+13
+14
+edge_type, number_instances
+"ACTED_IN", 177
+"DIRECTED", 45
+"PRODUCED", 15
+"WROTE", 10
+"REVIEWED", 9
+"FOLLOWS", 3

@@ -1,0 +1,70 @@
+\documentclass[a4paper, 12pt]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc} 
+\usepackage[english]{babel}
+
+\usepackage[margin=3.0cm]{geometry}
+\usepackage[margin=2cm,font={small,it}]{caption}
+
+\usepackage{xcolor}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{amsthm}
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{subcaption} %allows caption of subfigures
+
+\usepackage{hyperref}
+\usepackage[mode=buildnew]{standalone}% requires -shell-escape % or not lol
+\usepackage{minted} % syntax highlighting
+\definecolor{mygray}{gray}{0.95} % new color
+
+\renewcommand{\thesection}{\Roman{section}}
+\setminted[SQL]{
+bgcolor=mygray,
+frame=lines,
+framesep=2mm,
+breaklines, 
+breakautoindent=true
+}
+
+\begin{document}
+\title{Graph-based Knowledge Representation : Movie Database in Neo4j}
+\author{Justine Sauvage, Victor Mercklé}
+\maketitle
+
+\input{sql.tex}
+
+\section{Measuring the running time of queries}
+\begin{figure}
+\centering
+\includegraphics[scale=0.8]{graphtime}
+\caption{Execution time of queries from III and IV sections}
+	\label{topkek}
+\end{figure}
+
+In the barplot \ref{topkek}, we can see that all the queries in section III have a negligible execution time (<1ms). Only queries in section IV that deals with paths of certain length takes longer.
+
+The two bars we can actually see are the time it takes to count all paths of length up to 10, and up to 11. There are 570642 paths of length<=10 and 2 054 494 of length<=11. The exponential amount paths is reflected in the exponential execution time. In figure \ref{topkek2} we ran the query with a finer range of length of paths. The plot is on a logarithmic scale and we can see it is somewhat linear and thus exponential in reality.
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.8]{graphtime2}
+	\caption{Time taken to count the number of paths of various length}
+	\label{topkek2}
+\end{figure}
+
+\begin{figure}
+\centering
+\includegraphics[scale=0.8]{graphtime4}
+	\caption{Path counted per millisecond as the number of possible hops increases}
+	\label{topkek3}
+\end{figure}
+
+Queries IV-7 only counts the number of reachable nodes in 11 hops. This query has been optimized as it takes only 26ms. It does not need to iterate through every path possible. However, in graph \ref{topkek3} we measured the execution time for a wider range of possible hops. We can see it is also of exponential complexity.
+
+
+
+\end{document}

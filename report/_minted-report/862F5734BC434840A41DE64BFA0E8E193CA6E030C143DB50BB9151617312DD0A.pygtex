@@ -1,0 +1,6 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k}{MATCH} \PYG{p}{(}\PYG{n}{n}\PYG{p}{:}\PYG{n}{ShowbizPerson}\PYG{p}{)}\PYG{o}{\PYGZhy{}}\PYG{p}{[:}\PYG{n}{ACTED\PYGZus{}IN}\PYG{p}{]}\PYG{o}{\PYGZhy{}\PYGZgt{}} \PYG{p}{(}\PYG{n}{m}\PYG{p}{:}\PYG{n}{Movie}\PYG{p}{)}
+\PYG{k}{RETURN} \PYG{n}{m}\PYG{p}{,}\PYG{n}{round}\PYG{p}{(}\PYG{l+m+mi}{100}\PYG{o}{*}\PYG{k}{avg}\PYG{p}{(}\PYG{n}{m}\PYG{p}{.}\PYG{n}{released}\PYG{o}{\PYGZhy{}}\PYG{n}{n}\PYG{p}{.}\PYG{n}{born}\PYG{p}{))}\PYG{o}{/}\PYG{l+m+mi}{100} \PYG{k}{as} \PYG{n}{mean}
+\PYG{k}{ORDER} \PYG{k}{BY} \PYG{n}{mean} \PYG{k}{DESC}
+\PYG{k}{LIMIT} \PYG{l+m+mi}{10}\PYG{p}{;}
+\end{Verbatim}

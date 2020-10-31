@@ -1,0 +1,6 @@
+\begin{Verbatim}[commandchars=\\\{\}]
+\PYG{k}{MATCH} \PYG{p}{(}\PYG{n}{n1}\PYG{p}{:}\PYG{n}{MoviegoerPerson}\PYG{p}{)}\PYG{o}{\PYGZhy{}}\PYG{p}{[:}\PYG{n}{FOLLOWS}\PYG{p}{]}\PYG{o}{\PYGZhy{}\PYGZgt{}}\PYG{p}{(}\PYG{n}{n2}\PYG{p}{:}\PYG{n}{MoviegoerPerson}\PYG{p}{)}
+\PYG{n}{OPTIONAL} \PYG{k}{MATCH} \PYG{p}{(}\PYG{n}{n1}\PYG{p}{)}\PYG{o}{\PYGZhy{}}\PYG{p}{[:}\PYG{n}{REVIEWED}\PYG{p}{]}\PYG{o}{\PYGZhy{}\PYGZgt{}}\PYG{p}{(}\PYG{n}{m1}\PYG{p}{:}\PYG{n}{Movie}\PYG{p}{)}
+\PYG{n}{OPTIONAL} \PYG{k}{MATCH} \PYG{p}{(}\PYG{n}{n2}\PYG{p}{)}\PYG{o}{\PYGZhy{}}\PYG{p}{[:}\PYG{n}{REVIEWED}\PYG{p}{]}\PYG{o}{\PYGZhy{}\PYGZgt{}}\PYG{p}{(}\PYG{n}{m2}\PYG{p}{:}\PYG{n}{Movie}\PYG{p}{)}
+\PYG{k}{RETURN} \PYG{p}{[}\PYG{n}{n1}\PYG{p}{.}\PYG{n}{name}\PYG{p}{,} \PYG{n}{n2}\PYG{p}{.}\PYG{n}{name}\PYG{p}{],} \PYG{n}{collect}\PYG{p}{(}\PYG{n}{COALESCE}\PYG{p}{(}\PYG{n}{m1}\PYG{p}{.}\PYG{n}{title}\PYG{p}{,} \PYG{n}{m2}\PYG{p}{.}\PYG{n}{title}\PYG{p}{))[}\PYG{l+m+mi}{0}\PYG{p}{];}
+\end{Verbatim}
